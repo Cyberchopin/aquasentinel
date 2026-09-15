@@ -1,0 +1,14 @@
+{
+  "dataset": "1000 synthetic observations / 10 streams / 25 declared sources",
+  "python": "3.12.14",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "measured_at": "2026-09-15T20:22:21.576149+00:00",
+  "ingest_seconds": 1.6083,
+  "duplicate_replays": 1000,
+  "snapshot_runs": 100,
+  "records_per_snapshot": 100,
+  "snapshot_median_ms": 0.4303,
+  "snapshot_p95_ms": 0.5126,
+  "identical_after_restart": true,
+  "limitations": "Single-process local SQLite microbenchmark; synthetic data; no predictive accuracy, concurrent throughput or production-scale claim."
+}
