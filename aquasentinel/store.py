@@ -27,6 +27,13 @@ class Store:
             id TEXT PRIMARY KEY, stream_id TEXT NOT NULL, imported_at TEXT NOT NULL,
             payload TEXT NOT NULL);
           CREATE INDEX IF NOT EXISTS context_stream_time ON environmental_datasets(stream_id, imported_at);
+          CREATE TABLE IF NOT EXISTS weather_captures (
+            id TEXT PRIMARY KEY, stream_id TEXT NOT NULL, fetched_at TEXT NOT NULL,
+            imported_at TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS alert_outbox (
+            id INTEGER PRIMARY KEY, stream_id TEXT NOT NULL, created_at TEXT NOT NULL,
+            decision_hash TEXT NOT NULL, level TEXT NOT NULL,
+            UNIQUE(stream_id, decision_hash, level));
         ''')
         self.db.commit()
 
@@ -57,6 +64,22 @@ class Store:
             # the exact archive version they had available.
             decision["environmental_context"] = context
             decision["decision_hash"] = digest({"triage_hash": decision["decision_hash"], "context": context})
+        from .weather import watch
+        from .config import station
+        forecast = self.forecast_at(stream_id, time)
+        cfg = station()
+        warning = watch(forecast, time, cfg['watch_rain_mm'], cfg['watch_window_hours'])
+        decision['forecast'] = forecast
+        decision['watch'] = warning
+        if forecast:
+            decision['decision_hash'] = digest({'evidence_hash': decision['decision_hash'],
+                'forecast_id': forecast['capture_id'],
+                'watch': {k: v for k, v in warning.items() if k != 'lead_hours'} if warning else None})
+        decision['alerts'] = [dict(r) for r in self.db.execute(
+            'SELECT * FROM alert_outbox WHERE stream_id=? AND created_at<=? ORDER BY created_at,id', (stream_id, time))]
+        for alert in decision['alerts']:
+            alert['status'] = 'active' if alert['decision_hash'] == decision['decision_hash'] else 'retracted'
+            alert['dry_run'] = True
         reviews = [dict(r) for r in self.db.execute(
             "SELECT id,reviewed_at,decision_hash,action,note FROM reviews WHERE stream_id=? AND reviewed_at<=? ORDER BY reviewed_at,id",
             (stream_id, time))]
@@ -84,7 +107,33 @@ class Store:
         return self.snapshot(stream_id, time)
 
     def streams(self):
-        return [r[0] for r in self.db.execute("SELECT stream_id FROM observations UNION SELECT stream_id FROM environmental_datasets ORDER BY stream_id")]
+        return [r[0] for r in self.db.execute("SELECT stream_id FROM observations UNION SELECT stream_id FROM environmental_datasets UNION SELECT stream_id FROM weather_captures ORDER BY stream_id")]
+
+    def import_weather(self, capture, imported_at=None):
+        from .weather import validate_capture
+        c = validate_capture(capture)
+        time = utc(imported_at or now())
+        if time < c['fetched_at']:
+            raise ValueError('Import cannot predate forecast receipt')
+        with self.db:
+            cursor = self.db.execute('INSERT OR IGNORE INTO weather_captures VALUES(?,?,?,?,?,?)',
+                (c['capture_id'], c['stream_id'], c['fetched_at'], time, c['kind'], json.dumps(c, sort_keys=True)))
+        return cursor.rowcount == 1
+
+    def forecast_at(self, stream_id, as_of):
+        at = utc(as_of)
+        row = self.db.execute("SELECT payload,imported_at FROM weather_captures WHERE stream_id=? AND kind='forecast' AND fetched_at<=? AND imported_at<=? ORDER BY fetched_at DESC,id DESC LIMIT 1", (stream_id, at, at)).fetchone()
+        return json.loads(row[0]) | {'imported_at': row[1]} if row else None
+
+    def queue_alert(self, stream_id, at=None):
+        time = utc(at or now())
+        snapshot = self.snapshot(stream_id, time)
+        level = 'review' if snapshot['state'] == 'review_recommended' else 'watch' if snapshot['watch'] else None
+        if level:
+            with self.db:
+                self.db.execute('INSERT OR IGNORE INTO alert_outbox(stream_id,created_at,decision_hash,level) VALUES(?,?,?,?)',
+                    (stream_id, time, snapshot['decision_hash'], level))
+        return self.snapshot(stream_id, time)
 
     def import_environment(self, folder, imported_at=None):
         from .usgs import load_bundle

@@ -2,6 +2,7 @@
 import argparse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import os
 from pathlib import Path
 import time
 from urllib.parse import urlparse, parse_qs
@@ -11,7 +12,7 @@ from .demo import seed
 WEB = Path(__file__).resolve().parent.parent / "web"
 
 
-def make_handler(store):
+def make_handler(store, read_only=False):
     class Handler(BaseHTTPRequestHandler):
         def respond(self, status, value, content_type="application/json"):
             body = json.dumps(value, allow_nan=False).encode() if content_type == "application/json" else value
@@ -28,7 +29,7 @@ def make_handler(store):
             query = parse_qs(parsed.query)
             try:
                 if parsed.path == "/api/health":
-                    return self.respond(200, {"status": "ok", "mode": "local-prototype"})
+                    return self.respond(200, {"status": "ok", "mode": "read-only-replay" if read_only else "local-prototype"})
                 if parsed.path == "/api/streams":
                     return self.respond(200, {"streams": store.streams()})
                 if parsed.path == "/api/snapshot":
@@ -45,6 +46,8 @@ def make_handler(store):
                 self.respond(400, {"error": str(exc)})
 
         def do_POST(self):
+            if read_only:
+                return self.respond(403, {"error": "Shared replay is read-only"})
             # Browser requests must originate from this local UI, not another website.
             origin = self.headers.get("Origin")
             expected_origin = f"http://127.0.0.1:{self.server.server_port}"
@@ -61,7 +64,10 @@ def make_handler(store):
                     raise ValueError("Expected a JSON object")
                 if self.path == "/api/observations":
                     result = store.ingest(data)
+                    store.queue_alert(result["observation"]["stream_id"])
                     return self.respond(200 if result["duplicate"] else 201, result)
+                if self.path == "/api/alerts":
+                    return self.respond(200, store.queue_alert(data["stream_id"]))
                 if self.path == "/api/reviews":
                     return self.respond(201, store.review(data["stream_id"], data["decision_hash"], data["action"], data["note"]))
                 self.respond(404, {"error": "Not found"})
@@ -74,7 +80,10 @@ def make_handler(store):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--read-only", action="store_true")
+    parser.add_argument("--weather-dir", type=Path)
     parser.add_argument("--db", default="runtime/aquasentinel.sqlite3")
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--usgs-fixture", nargs="?", const=str(Path(__file__).resolve().parent.parent / "data" / "usgs-arroyo-seco-2024-02"),
@@ -86,7 +95,12 @@ def main():
         seed(store)
     if args.usgs_fixture:
         store.import_environment(args.usgs_fixture)
-    server = HTTPServer(("127.0.0.1", args.port), make_handler(store))
+    if args.weather_dir:
+        for path in sorted(args.weather_dir.glob("*.json")):
+            store.import_weather(json.loads(path.read_text(encoding="utf-8")))
+    if args.host != "127.0.0.1" and not args.read_only:
+        parser.error("External binding currently requires --read-only")
+    server = HTTPServer((args.host, args.port), make_handler(store, args.read_only))
     print(f"AquaSentinel local prototype: http://127.0.0.1:{args.port}", flush=True)
     try:
         server.serve_forever()

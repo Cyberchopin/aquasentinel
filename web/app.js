@@ -30,6 +30,11 @@ async function refresh(){
   if(ticket!==sequence)return;
   snapshot=result;
   renderEnvironment(result.environmental_context);
+  const weather=$('weather');weather.replaceChildren();
+  if(result.forecast){weather.append(text('p',result.forecast.source_type.toUpperCase()+' · FORECAST · fetched '+result.forecast.fetched_at),text('p','Provider issue time: '+(result.forecast.issued_at||'not supplied')+' · Open-Meteo. Fetch time is receipt, not publication.','subtle'));}
+  weather.append(text('p',result.watch?'WATCH: '+result.watch.rain_mm+' mm; window '+result.watch.window_start+'; lead '+result.watch.lead_hours+' hours. Illustrative runoff concern only.':'No active rainfall Watch. Missing, dry or expired forecast.'));
+  for(const alert of result.alerts||[])weather.append(text('p','DRY RUN · '+alert.level.toUpperCase()+' · '+alert.status.toUpperCase()+' · '+alert.decision_hash.slice(0,12)));
+
   $('clock').textContent=(present?'Present · ':'Replay · ')+new Date(at).toISOString().replace('T',' ').slice(0,19)+' UTC';
   $('state').textContent=labels[result.display_state];
   $('state').className='badge'+(result.state==='review_recommended'?' escalated':'');
@@ -50,3 +55,5 @@ $('review-form').onsubmit=async e=>{e.preventDefault();if(busy||!snapshot||$('ti
 $('observation-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{await api('/api/observations',{source_id:$('source').value,external_id:crypto.randomUUID(),stream_id:$('stream').value,observed_at:new Date().toISOString(),lat:snapshot?.environmental_context?.lat??33.68,lon:snapshot?.environmental_context?.lon??-117.82,signal:$('signal').value,synthetic:true,note:'Synthetic workflow report at current application time. Not a real report or historical USGS event.'});anchor=Date.now();$('time').value='360';$('message').textContent='Synthetic observation added. Review the updated evidence.';await refresh();}catch(err){$('message').textContent=err.message;}finally{button.disabled=false;}};
 $('export').onclick=()=>{if(!snapshot)return;const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='aquasentinel-evidence.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 (async()=>{try{const {streams}=await api('/api/streams');$('stream').replaceChildren(...streams.map(s=>{const o=text('option',s);o.value=s;return o;}));if(!streams.length){$('message').textContent='No streams yet. Start the server with --demo to load synthetic observations.';return;}await refresh();}catch(e){$('message').textContent=e.message;}})();
+
+$('queue-alert').onclick=async()=>{try{await api('/api/alerts',{stream_id:$('stream').value});await refresh();}catch(e){$('message').textContent=e.message;}};
