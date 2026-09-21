@@ -32,6 +32,12 @@ def make_handler(store, read_only=False):
                     return self.respond(200, {"status": "ok", "mode": "read-only-replay" if read_only else "local-prototype"})
                 if parsed.path == "/api/streams":
                     return self.respond(200, {"streams": store.streams()})
+                if parsed.path in {"/api/brief", "/api/fhir"}:
+                    from .exports import brief, fhir_bundle
+                    snapshot = store.snapshot(query.get("stream", ["demo-creek-a"])[0], query.get("as_of", [None])[0])
+                    if parsed.path == "/api/brief":
+                        return self.respond(200, brief(snapshot).encode(), "text/html; charset=utf-8")
+                    return self.respond(200, fhir_bundle(snapshot))
                 if parsed.path == "/api/snapshot":
                     started = time.perf_counter()
                     result = store.snapshot(query.get("stream", ["demo-creek-a"])[0], query.get("as_of", [None])[0])

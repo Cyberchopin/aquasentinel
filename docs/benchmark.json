@@ -2,13 +2,13 @@
   "dataset": "1000 synthetic observations / 10 streams / 25 declared sources",
   "python": "3.12.14",
   "platform": "Windows-11-10.0.26200-SP0",
-  "measured_at": "2026-09-21T18:07:21.959667+00:00",
-  "ingest_seconds": 1.5583,
+  "measured_at": "2026-09-21T18:10:21.669243+00:00",
+  "ingest_seconds": 2.343,
   "duplicate_replays": 1000,
   "snapshot_runs": 100,
   "records_per_snapshot": 100,
-  "snapshot_median_ms": 0.5511,
-  "snapshot_p95_ms": 0.6129,
+  "snapshot_median_ms": 0.5538,
+  "snapshot_p95_ms": 0.6459,
   "identical_after_restart": true,
   "limitations": "Single-process local SQLite microbenchmark; synthetic data; no predictive accuracy, concurrent throughput or production-scale claim."
 }

@@ -1,0 +1,3 @@
+# Optional structural FHIR R4 validation; runtime remains stdlib-only.
+fhir.resources==6.5.0
+pydantic<2

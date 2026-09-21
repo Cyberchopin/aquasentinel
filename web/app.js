@@ -57,3 +57,5 @@ $('export').onclick=()=>{if(!snapshot)return;const blob=new Blob([JSON.stringify
 (async()=>{try{const {streams}=await api('/api/streams');$('stream').replaceChildren(...streams.map(s=>{const o=text('option',s);o.value=s;return o;}));if(!streams.length){$('message').textContent='No streams yet. Start the server with --demo to load synthetic observations.';return;}await refresh();}catch(e){$('message').textContent=e.message;}})();
 
 $('queue-alert').onclick=async()=>{try{await api('/api/alerts',{stream_id:$('stream').value});await refresh();}catch(e){$('message').textContent=e.message;}};
+
+for(const [id,path] of [["brief-export","brief"],["fhir-export","fhir"]])$(id).onclick=()=>{if(snapshot)window.open("/api/"+path+"?stream="+encodeURIComponent(snapshot.stream_id)+"&as_of="+encodeURIComponent(snapshot.as_of),"_blank","noopener");};
