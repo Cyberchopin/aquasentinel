@@ -1,7 +1,7 @@
 """SQLite event log with immutable ingestion and snapshot-bound reviews."""
 import json
 import sqlite3
-from .engine import assess, now, utc, validate
+from .engine import assess, digest, now, utc, validate
 
 
 class Conflict(ValueError):
@@ -23,6 +23,10 @@ class Store:
             id INTEGER PRIMARY KEY, stream_id TEXT NOT NULL, reviewed_at TEXT NOT NULL,
             decision_hash TEXT NOT NULL, action TEXT NOT NULL, note TEXT NOT NULL,
             snapshot TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS environmental_datasets (
+            id TEXT PRIMARY KEY, stream_id TEXT NOT NULL, imported_at TEXT NOT NULL,
+            payload TEXT NOT NULL);
+          CREATE INDEX IF NOT EXISTS context_stream_time ON environmental_datasets(stream_id, imported_at);
         ''')
         self.db.commit()
 
@@ -47,6 +51,12 @@ class Store:
         time = utc(as_of or now())
         rows = self.db.execute("SELECT payload FROM observations WHERE stream_id=? AND received_at<=? ORDER BY received_at,id", (stream_id, time))
         decision = assess([json.loads(r[0]) for r in rows], stream_id, time)
+        context = self.environmental_context(stream_id, time)
+        if context:
+            # Background does not vote in triage, but reviewers must see/review
+            # the exact archive version they had available.
+            decision["environmental_context"] = context
+            decision["decision_hash"] = digest({"triage_hash": decision["decision_hash"], "context": context})
         reviews = [dict(r) for r in self.db.execute(
             "SELECT id,reviewed_at,decision_hash,action,note FROM reviews WHERE stream_id=? AND reviewed_at<=? ORDER BY reviewed_at,id",
             (stream_id, time))]
@@ -74,4 +84,28 @@ class Store:
         return self.snapshot(stream_id, time)
 
     def streams(self):
-        return [r[0] for r in self.db.execute("SELECT DISTINCT stream_id FROM observations ORDER BY stream_id")]
+        return [r[0] for r in self.db.execute("SELECT stream_id FROM observations UNION SELECT stream_id FROM environmental_datasets ORDER BY stream_id")]
+
+    def import_environment(self, folder, imported_at=None):
+        from .usgs import load_bundle
+        dataset = load_bundle(folder)
+        time = utc(imported_at or now())
+        if time < dataset["retrieved_at"]:
+            raise ValueError("Import time cannot predate dataset retrieval")
+        payload = json.dumps(dataset, sort_keys=True, allow_nan=False)
+        existing = self.db.execute("SELECT payload FROM environmental_datasets WHERE id=?", (dataset["dataset_id"],)).fetchone()
+        if existing:
+            if existing[0] != payload:
+                raise Conflict("Dataset ID already exists with different content")
+            return False
+        with self.db:
+            self.db.execute("INSERT INTO environmental_datasets VALUES(?,?,?,?)",
+                            (dataset["dataset_id"], dataset["stream_id"], time, payload))
+        return True
+
+    def environmental_context(self, stream_id, as_of):
+        row = self.db.execute("SELECT imported_at,payload FROM environmental_datasets WHERE stream_id=? AND imported_at<=? ORDER BY imported_at DESC,id DESC LIMIT 1",
+                              (stream_id, utc(as_of))).fetchone()
+        if not row:
+            return None
+        return json.loads(row["payload"]) | {"imported_at": row["imported_at"]}

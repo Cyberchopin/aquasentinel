@@ -5,6 +5,21 @@ let anchor=Date.now();
 const text = (tag, value, className) => {const e=document.createElement(tag);e.textContent=value;if(className)e.className=className;return e;};
 async function api(path, data){const r=await fetch(path,data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:undefined);const v=await r.json();if(!r.ok)throw Error(v.error||'Request failed');return v;}
 function stamp(value){return new Date(value).toISOString().slice(11,19)+' UTC';}
+function renderEnvironment(context){
+ const area=$('environment-content');area.replaceChildren();
+ if(!context){area.append(text('p','No monitoring archive was available to this application at the selected replay time.','subtle'));return;}
+ area.append(text('h3',context.station_name+' · '+context.stream_id),text('p','REAL USGS MEASUREMENTS · '+context.variable+' ('+context.unit+')','real-label'));
+ area.append(text('p','Provider dates: '+context.records[0].measurement_date+' through '+context.records.at(-1).measurement_date+'. Daily summaries, not instantaneous sensor readings.','subtle'));
+ const table=document.createElement('table');table.className='flow-table';
+ const header=document.createElement('tr');['Provider date','Daily mean · '+context.unit,'Provider status','Source / type'].forEach(v=>header.append(text('th',v)));table.append(header);
+ for(const record of context.records){const row=document.createElement('tr');[record.measurement_date,record.value===null?'Missing':String(record.value),record.approval_status||'Unknown','REAL · SENSOR'].forEach(v=>row.append(text('td',v)));table.append(row);}
+ area.append(table,text('p',context.limitations,'subtle'),text('p','Downloaded '+context.retrieved_at+' · Imported '+context.imported_at+'. Initial publication time is unknown. Historical revisions are not live alerts.','subtle'));
+ const details=document.createElement('details');details.append(text('summary','Source and provenance'));
+ const link=text('a','Open original USGS daily data');link.href=context.provenance.files['daily.json'].requested_url;link.target='_blank';link.rel='noopener noreferrer';details.append(link);
+ details.append(text('p','Credit: U.S. Geological Survey. Station '+context.lat+', '+context.lon+'. SHA-256: '+context.provenance.files['daily.json'].sha256,'subtle'));
+ details.append(text('p','Provider revisions: '+[...new Set(context.records.map(r=>r.provider_last_modified||'unknown'))].join(', '),'subtle'));
+ area.append(details);
+}
 async function refresh(){
  const ticket=++sequence;
  $('review-submit').disabled=true;
@@ -14,12 +29,13 @@ async function refresh(){
   const result=await api('/api/snapshot?stream='+encodeURIComponent($('stream').value)+'&as_of='+encodeURIComponent(at));
   if(ticket!==sequence)return;
   snapshot=result;
+  renderEnvironment(result.environmental_context);
   $('clock').textContent=(present?'Present · ':'Replay · ')+new Date(at).toISOString().replace('T',' ').slice(0,19)+' UTC';
   $('state').textContent=labels[result.display_state];
   $('state').className='badge'+(result.state==='review_recommended'?' escalated':'');
   $('count').textContent=result.evidence.length;$('sources').textContent=result.distinct_sources;$('latency').textContent=result.query_ms;
   $('reasons').replaceChildren(...result.reasons.map(r=>text('li',r)));
-  $('evidence').replaceChildren(...result.evidence.map(r=>{const e=text('div','','record');e.append(text('b',r.signal==='rainfall'?`Rainfall · ${r.value} mm`:r.signal.charAt(0).toUpperCase()+r.signal.slice(1)),text('p',`${r.source_id} · observed ${stamp(r.observed_at)}\nReceived ${stamp(r.received_at)}`),text('span',r.synthetic?'SYNTHETIC FIXTURE':'USER-SUPPLIED · UNVERIFIED','synthetic'));return e;}));
+  $('evidence').replaceChildren(...result.evidence.map(r=>{const e=text('div','','record');e.append(text('b',r.signal==='rainfall'?`Rainfall · ${r.value} mm`:r.signal.charAt(0).toUpperCase()+r.signal.slice(1)),text('p',`${r.source_id} · observed ${stamp(r.observed_at)}\nReceived ${stamp(r.received_at)}`),text('span',(r.synthetic?'SYNTHETIC':'REAL · UNVERIFIED')+' · '+(r.signal==='rainfall'?'RAINFALL CONTEXT':'CITIZEN REPORT'),'synthetic'));return e;}));
   if(!result.evidence.length)$('evidence').append(text('p','No observations were available at this point.','subtle'));
   $('markers').replaceChildren(...result.evidence.slice(0,5).map((r,i)=>{const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx',String(65+i*66));c.setAttribute('cy',String([87,136,125,99,105][i]));c.setAttribute('r','7');c.setAttribute('fill',r.signal==='normal'?'#bd8734':'#34664b');c.setAttribute('stroke','#fff');c.setAttribute('stroke-width','3');return c;}));
   $('review-submit').disabled=!present||!result.evidence.length||busy;
@@ -31,6 +47,6 @@ $('stream').onchange=refresh;
 let timer;$('time').oninput=()=>{++sequence;$('review-submit').disabled=true;clearTimeout(timer);timer=setTimeout(refresh,90);};
 $('live').onclick=()=>{anchor=Date.now();$('time').value='360';refresh();};
 $('review-form').onsubmit=async e=>{e.preventDefault();if(busy||!snapshot||$('time').value!=='360')return;busy=true;$('review-submit').disabled=true;try{await api('/api/reviews',{stream_id:snapshot.stream_id,decision_hash:snapshot.decision_hash,action:$('action').value,note:$('review-note').value});$('review-note').value='';$('message').textContent='Review saved with its evidence snapshot.';}catch(err){$('message').textContent=err.message;}finally{busy=false;await refresh();}};
-$('observation-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{await api('/api/observations',{source_id:$('source').value,external_id:crypto.randomUUID(),stream_id:$('stream').value,observed_at:new Date().toISOString(),lat:33.68,lon:-117.82,signal:$('signal').value,synthetic:true,note:'Synthetic observation added in the local demo.'});anchor=Date.now();$('time').value='360';$('message').textContent='Synthetic observation added. Review the updated evidence.';await refresh();}catch(err){$('message').textContent=err.message;}finally{button.disabled=false;}};
+$('observation-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{await api('/api/observations',{source_id:$('source').value,external_id:crypto.randomUUID(),stream_id:$('stream').value,observed_at:new Date().toISOString(),lat:snapshot?.environmental_context?.lat??33.68,lon:snapshot?.environmental_context?.lon??-117.82,signal:$('signal').value,synthetic:true,note:'Synthetic workflow report at current application time. Not a real report or historical USGS event.'});anchor=Date.now();$('time').value='360';$('message').textContent='Synthetic observation added. Review the updated evidence.';await refresh();}catch(err){$('message').textContent=err.message;}finally{button.disabled=false;}};
 $('export').onclick=()=>{if(!snapshot)return;const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='aquasentinel-evidence.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 (async()=>{try{const {streams}=await api('/api/streams');$('stream').replaceChildren(...streams.map(s=>{const o=text('option',s);o.value=s;return o;}));if(!streams.length){$('message').textContent='No streams yet. Start the server with --demo to load synthetic observations.';return;}await refresh();}catch(e){$('message').textContent=e.message;}})();

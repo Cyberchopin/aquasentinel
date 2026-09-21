@@ -1,0 +1,13 @@
+{
+  "stream_id": "USGS-11098000",
+  "city": "Pasadena, California",
+  "name": "Arroyo Seco",
+  "latitude": 34.222225844345445,
+  "longitude": -118.17755800149571,
+  "purpose": "Pipeline validation only; not a OneAquaHealth pilot",
+  "usgs_parameter": "00060",
+  "usgs_statistic": "00003",
+  "unit": "ft^3/s",
+  "watch_rain_mm": 5,
+  "watch_window_hours": 6
+}

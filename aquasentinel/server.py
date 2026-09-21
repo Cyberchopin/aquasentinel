@@ -77,11 +77,15 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--db", default="runtime/aquasentinel.sqlite3")
     parser.add_argument("--demo", action="store_true")
+    parser.add_argument("--usgs-fixture", nargs="?", const=str(Path(__file__).resolve().parent.parent / "data" / "usgs-arroyo-seco-2024-02"),
+                        help="Import a verified USGS offline archive (optional custom directory)")
     args = parser.parse_args()
     Path(args.db).parent.mkdir(parents=True, exist_ok=True)
     store = Store(args.db)
     if args.demo and not store.streams():
         seed(store)
+    if args.usgs_fixture:
+        store.import_environment(args.usgs_fixture)
     server = HTTPServer(("127.0.0.1", args.port), make_handler(store))
     print(f"AquaSentinel local prototype: http://127.0.0.1:{args.port}", flush=True)
     try:

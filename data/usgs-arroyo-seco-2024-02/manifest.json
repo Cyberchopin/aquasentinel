@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "provider": "U.S. Geological Survey",
+  "station_id": "USGS-11098000",
+  "requested_start": "2024-02-01",
+  "requested_end": "2024-02-08",
+  "attribution": "Credit: U.S. Geological Survey",
+  "rights_url": "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits",
+  "original_publication_time": null,
+  "time_semantics": "Retrospective daily summaries. Original publication time is unknown; last_modified is a revision timestamp, not initial availability.",
+  "files": {
+    "daily.json": {
+      "requested_url": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/daily/items?f=json&monitoring_location_id=USGS-11098000&parameter_code=00060&statistic_id=00003&datetime=2024-02-01%2F2024-02-08&limit=40",
+      "resolved_url": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/daily/items?f=json&monitoring_location_id=USGS-11098000&parameter_code=00060&statistic_id=00003&datetime=2024-02-01%2F2024-02-08&limit=40",
+      "retrieved_at": "2026-09-21T05:22:28.364469+00:00",
+      "http_status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "etag": null,
+      "last_modified_header": null,
+      "sha256": "47de849dce1deab8f8ff47be467c710b6ab8d97f5d96502bd3adbb580382cc5d",
+      "bytes": 6955
+    },
+    "series.json": {
+      "requested_url": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/time-series-metadata/items?f=json&monitoring_location_id=USGS-11098000&parameter_code=00060&statistic_id=00003&limit=10",
+      "resolved_url": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/time-series-metadata/items?f=json&monitoring_location_id=USGS-11098000&parameter_code=00060&statistic_id=00003&limit=10",
+      "retrieved_at": "2026-09-21T05:22:28.781507+00:00",
+      "http_status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "etag": null,
+      "last_modified_header": null,
+      "sha256": "22f20e0c3d8b60debff013c365281af98902672b8e95c356a0fbf6f942945ecc",
+      "bytes": 2612
+    },
+    "station.json": {
+      "requested_url": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/monitoring-locations/items/USGS-11098000?f=json",
+      "resolved_url": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/monitoring-locations/items/USGS-11098000?f=json",
+      "retrieved_at": "2026-09-21T05:22:29.030467+00:00",
+      "http_status": 200,
+      "content_type": "application/json; charset=utf-8",
+      "etag": null,
+      "last_modified_header": null,
+      "sha256": "d7bf8c885c3c42d98ba300f16ef36250a6c90acb8f700347c12518c6d51b3cc2",
+      "bytes": 4134
+    }
+  }
+}
