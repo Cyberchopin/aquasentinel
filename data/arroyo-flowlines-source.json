@@ -1,0 +1,7 @@
+{
+  "url": "https://api.water.usgs.gov/nldi/linked-data/nwissite/USGS-11098000/navigation/UM/flowlines?f=json&distance=5",
+  "fetched_at": "2026-09-21T18:16:44.432930+00:00",
+  "sha256": "43e24016ee42e2b8cd57dd2d58d88e991e2e34d84fff75e93c621444302588d4",
+  "source_type": "real",
+  "attribution": "USGS NLDI / NHDPlus"
+}

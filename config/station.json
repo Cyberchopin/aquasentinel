@@ -9,5 +9,6 @@
   "usgs_statistic": "00003",
   "unit": "ft^3/s",
   "watch_rain_mm": 5,
-  "watch_window_hours": 6
+  "watch_window_hours": 6,
+  "flowlines": "data/arroyo-flowlines.geojson"
 }

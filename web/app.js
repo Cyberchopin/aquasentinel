@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
 const labels = {monitor:'Monitor',needs_corroboration:'Needs corroboration',review_recommended:'Review recommended',dismissed:'Dismissed',follow_up_required:'Follow-up required'};
+let map, mapLayer, geometry, lastStream;
 let snapshot, sequence=0, busy=false;
 let anchor=Date.now();
 const text = (tag, value, className) => {const e=document.createElement(tag);e.textContent=value;if(className)e.className=className;return e;};
@@ -29,9 +30,18 @@ async function refresh(){
   const result=await api('/api/snapshot?stream='+encodeURIComponent($('stream').value)+'&as_of='+encodeURIComponent(at));
   if(ticket!==sequence)return;
   snapshot=result;
+  if(window.L){
+   if(!map){map=L.map('map').setView([34.22,-118.17],13);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors · USGS NLDI'}).addTo(map);geometry=await api('/api/geometry');map.on('click',e=>{$('report-lat').value=e.latlng.lat.toFixed(6);$('report-lon').value=e.latlng.lng.toFixed(6);});}
+   if(mapLayer)map.removeLayer(mapLayer);
+   mapLayer=L.featureGroup().addTo(map);
+   for(const feature of geometry.features.filter(f=>f.properties.stream_id===result.stream_id))L.geoJSON(feature,{style:{color:feature.properties.source_type==='real'?'#17888a':'#986725'}}).addTo(mapLayer);
+   for(const r of result.evidence)L.circleMarker([r.lat,r.lon],{radius:6}).bindTooltip((r.synthetic?'SYNTHETIC':'REAL')+' '+r.signal).addTo(mapLayer);
+   if(lastStream!==result.stream_id&&mapLayer.getBounds().isValid()){map.fitBounds(mapLayer.getBounds().pad(.1));lastStream=result.stream_id;const center=map.getCenter();$('report-lat').value=center.lat.toFixed(6);$('report-lon').value=center.lng.toFixed(6);}
+   $('schematic').hidden=true;
+  }else $('map').hidden=true;
   renderEnvironment(result.environmental_context);
   const weather=$('weather');weather.replaceChildren();
-  if(result.forecast){weather.append(text('p',result.forecast.source_type.toUpperCase()+' · FORECAST · fetched '+result.forecast.fetched_at),text('p','Provider issue time: '+(result.forecast.issued_at||'not supplied')+' · Open-Meteo. Fetch time is receipt, not publication.','subtle'));}
+  if(result.forecast){weather.append(text('p',result.forecast.source_type.toUpperCase()+' · FORECAST · fetched '+result.forecast.fetched_at),text('p','Provider issue time: '+(result.forecast.issued_at||'not supplied')+' · '+(result.forecast.attribution||'Provider unknown')+'. Fetch time is receipt, not publication.','subtle'));}
   weather.append(text('p',result.watch?'WATCH: '+result.watch.rain_mm+' mm; window '+result.watch.window_start+'; lead '+result.watch.lead_hours+' hours. Illustrative runoff concern only.':'No active rainfall Watch. Missing, dry or expired forecast.'));
   for(const alert of result.alerts||[])weather.append(text('p','DRY RUN · '+alert.level.toUpperCase()+' · '+alert.status.toUpperCase()+' · '+alert.decision_hash.slice(0,12)));
 
@@ -52,7 +62,7 @@ $('stream').onchange=refresh;
 let timer;$('time').oninput=()=>{++sequence;$('review-submit').disabled=true;clearTimeout(timer);timer=setTimeout(refresh,90);};
 $('live').onclick=()=>{anchor=Date.now();$('time').value='360';refresh();};
 $('review-form').onsubmit=async e=>{e.preventDefault();if(busy||!snapshot||$('time').value!=='360')return;busy=true;$('review-submit').disabled=true;try{await api('/api/reviews',{stream_id:snapshot.stream_id,decision_hash:snapshot.decision_hash,action:$('action').value,note:$('review-note').value});$('review-note').value='';$('message').textContent='Review saved with its evidence snapshot.';}catch(err){$('message').textContent=err.message;}finally{busy=false;await refresh();}};
-$('observation-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{await api('/api/observations',{source_id:$('source').value,external_id:crypto.randomUUID(),stream_id:$('stream').value,observed_at:new Date().toISOString(),lat:snapshot?.environmental_context?.lat??33.68,lon:snapshot?.environmental_context?.lon??-117.82,signal:$('signal').value,synthetic:true,note:'Synthetic workflow report at current application time. Not a real report or historical USGS event.'});anchor=Date.now();$('time').value='360';$('message').textContent='Synthetic observation added. Review the updated evidence.';await refresh();}catch(err){$('message').textContent=err.message;}finally{button.disabled=false;}};
+$('observation-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{const before=snapshot?.display_state;const reach=await api('/api/reach?lat='+encodeURIComponent($('report-lat').value)+'&lon='+encodeURIComponent($('report-lon').value));if(reach.stream_id!==$('stream').value)throw Error('Location must be within 200 m of the selected mapped reach.');await api('/api/observations',{source_id:$('source').value,external_id:crypto.randomUUID(),stream_id:$('stream').value,observed_at:new Date().toISOString(),lat:Number($('report-lat').value),lon:Number($('report-lon').value),signal:$('signal').value,synthetic:true,note:'Synthetic workflow report at current application time. Not a real report or historical USGS event.'});anchor=Date.now();$('time').value='360';await refresh();$('message').textContent='Your synthetic report changed the evidence: '+labels[before]+' → '+labels[snapshot.display_state]+'. A changed snapshot requires a new review.';}catch(err){$('message').textContent=err.message;}finally{button.disabled=false;}};
 $('export').onclick=()=>{if(!snapshot)return;const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='aquasentinel-evidence.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 (async()=>{try{const {streams}=await api('/api/streams');$('stream').replaceChildren(...streams.map(s=>{const o=text('option',s);o.value=s;return o;}));if(!streams.length){$('message').textContent='No streams yet. Start the server with --demo to load synthetic observations.';return;}await refresh();}catch(e){$('message').textContent=e.message;}})();
 

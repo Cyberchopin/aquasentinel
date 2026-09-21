@@ -1,0 +1,70 @@
+{
+  "synthetic": {
+    "seed": 260921,
+    "scenarios": 200,
+    "results": [
+      {
+        "threshold_mm": 3,
+        "precision": 0.6747967479674797,
+        "recall": 0.9431818181818182,
+        "false_alert_rate": 0.35714285714285715,
+        "lead_to_synthetic_peak_hours": 18,
+        "tp": 83,
+        "fp": 40,
+        "fn": 5,
+        "tn": 72
+      },
+      {
+        "threshold_mm": 5,
+        "precision": 0.7731958762886598,
+        "recall": 0.8522727272727273,
+        "false_alert_rate": 0.19642857142857142,
+        "lead_to_synthetic_peak_hours": 18,
+        "tp": 75,
+        "fp": 22,
+        "fn": 13,
+        "tn": 90
+      },
+      {
+        "threshold_mm": 10,
+        "precision": 0.9069767441860465,
+        "recall": 0.4431818181818182,
+        "false_alert_rate": 0.03571428571428571,
+        "lead_to_synthetic_peak_hours": 18,
+        "tp": 39,
+        "fp": 4,
+        "fn": 49,
+        "tn": 108
+      },
+      {
+        "threshold_mm": 15,
+        "precision": 1.0,
+        "recall": 0.022727272727272728,
+        "false_alert_rate": 0.0,
+        "lead_to_synthetic_peak_hours": 18,
+        "tp": 2,
+        "fp": 0,
+        "fn": 86,
+        "tn": 112
+      }
+    ],
+    "limitation": "Artificial correlated generator; tests mechanics, not environmental or forecast skill"
+  },
+  "real_proxy": {
+    "label": "USGS daily discharge local maxima: PROXY for rain-driven runoff events",
+    "peaks": [
+      {
+        "date": "2024-02-02",
+        "flow_cfs": 18.0
+      },
+      {
+        "date": "2024-02-05",
+        "flow_cfs": 164.0
+      }
+    ],
+    "forecast_skill": null,
+    "lead_time_hours": null,
+    "reason": "No as-issued contemporaneous forecast capture for February 2024. Daily mean has no known sub-day peak instant. Archive/reanalysis is not as-issued forecast skill.",
+    "does_not_validate": "Unusual citizen-report rule, water quality, rainfall causality, or disease"
+  }
+}
