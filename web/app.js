@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
 const labels = {monitor:'Monitor',needs_corroboration:'Needs corroboration',review_recommended:'Review recommended',dismissed:'Dismissed',follow_up_required:'Follow-up required'};
+let readOnly=false;
 let map, mapLayer, geometry, lastStream;
 let snapshot, sequence=0, busy=false;
 let anchor=Date.now();
@@ -36,8 +37,8 @@ async function refresh(){
    mapLayer=L.featureGroup().addTo(map);
    for(const feature of geometry.features.filter(f=>f.properties.stream_id===result.stream_id))L.geoJSON(feature,{style:{color:feature.properties.source_type==='real'?'#17888a':'#986725'}}).addTo(mapLayer);
    for(const r of result.evidence)L.circleMarker([r.lat,r.lon],{radius:6}).bindTooltip((r.synthetic?'SYNTHETIC':'REAL')+' '+r.signal).addTo(mapLayer);
-   if(lastStream!==result.stream_id&&mapLayer.getBounds().isValid()){map.fitBounds(mapLayer.getBounds().pad(.1));lastStream=result.stream_id;const center=map.getCenter();$('report-lat').value=center.lat.toFixed(6);$('report-lon').value=center.lng.toFixed(6);}
-   $('schematic').hidden=true;
+   if(lastStream!==result.stream_id&&mapLayer.getBounds().isValid()){map.fitBounds(mapLayer.getBounds().pad(.1),{animate:false});lastStream=result.stream_id;const center=map.getCenter();$('report-lat').value=center.lat.toFixed(6);$('report-lon').value=center.lng.toFixed(6);}
+   $('schematic').setAttribute('hidden','');
   }else $('map').hidden=true;
   renderEnvironment(result.environmental_context);
   const weather=$('weather');weather.replaceChildren();
@@ -53,7 +54,7 @@ async function refresh(){
   $('evidence').replaceChildren(...result.evidence.map(r=>{const e=text('div','','record');e.append(text('b',r.signal==='rainfall'?`Rainfall · ${r.value} mm`:r.signal.charAt(0).toUpperCase()+r.signal.slice(1)),text('p',`${r.source_id} · observed ${stamp(r.observed_at)}\nReceived ${stamp(r.received_at)}`),text('span',(r.synthetic?'SYNTHETIC':'REAL · UNVERIFIED')+' · '+(r.signal==='rainfall'?'RAINFALL CONTEXT':'CITIZEN REPORT'),'synthetic'));return e;}));
   if(!result.evidence.length)$('evidence').append(text('p','No observations were available at this point.','subtle'));
   $('markers').replaceChildren(...result.evidence.slice(0,5).map((r,i)=>{const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx',String(65+i*66));c.setAttribute('cy',String([87,136,125,99,105][i]));c.setAttribute('r','7');c.setAttribute('fill',r.signal==='normal'?'#bd8734':'#34664b');c.setAttribute('stroke','#fff');c.setAttribute('stroke-width','3');return c;}));
-  $('review-submit').disabled=!present||!result.evidence.length||busy;
+  $('review-submit').disabled=readOnly||!present||!result.evidence.length||busy;
   $('review-status').textContent=!present?'Return to present to save a review.':result.review_current?'Saved review matches the current evidence.':result.reviews.length?'Evidence or priority changed. A fresh review is needed.':'No review recorded for this evidence.';
   $('reviews').replaceChildren(...result.reviews.map(r=>{const e=text('div','','audit');e.append(text('b',labels[r.action]),text('p',r.note),text('span',stamp(r.reviewed_at)));return e;}));
  }catch(e){if(ticket===sequence)$('message').textContent=e.message;}
@@ -64,7 +65,7 @@ $('live').onclick=()=>{anchor=Date.now();$('time').value='360';refresh();};
 $('review-form').onsubmit=async e=>{e.preventDefault();if(busy||!snapshot||$('time').value!=='360')return;busy=true;$('review-submit').disabled=true;try{await api('/api/reviews',{stream_id:snapshot.stream_id,decision_hash:snapshot.decision_hash,action:$('action').value,note:$('review-note').value});$('review-note').value='';$('message').textContent='Review saved with its evidence snapshot.';}catch(err){$('message').textContent=err.message;}finally{busy=false;await refresh();}};
 $('observation-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{const before=snapshot?.display_state;const reach=await api('/api/reach?lat='+encodeURIComponent($('report-lat').value)+'&lon='+encodeURIComponent($('report-lon').value));if(reach.stream_id!==$('stream').value)throw Error('Location must be within 200 m of the selected mapped reach.');await api('/api/observations',{source_id:$('source').value,external_id:crypto.randomUUID(),stream_id:$('stream').value,observed_at:new Date().toISOString(),lat:Number($('report-lat').value),lon:Number($('report-lon').value),signal:$('signal').value,synthetic:true,note:'Synthetic workflow report at current application time. Not a real report or historical USGS event.'});anchor=Date.now();$('time').value='360';await refresh();$('message').textContent='Your synthetic report changed the evidence: '+labels[before]+' → '+labels[snapshot.display_state]+'. A changed snapshot requires a new review.';}catch(err){$('message').textContent=err.message;}finally{button.disabled=false;}};
 $('export').onclick=()=>{if(!snapshot)return;const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='aquasentinel-evidence.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-(async()=>{try{const {streams}=await api('/api/streams');$('stream').replaceChildren(...streams.map(s=>{const o=text('option',s);o.value=s;return o;}));if(!streams.length){$('message').textContent='No streams yet. Start the server with --demo to load synthetic observations.';return;}await refresh();}catch(e){$('message').textContent=e.message;}})();
+(async()=>{try{const health=await api('/api/health');readOnly=health.mode==='read-only-replay';document.querySelector('.local').textContent=health.mode;if(readOnly){$('observation-form').hidden=true;$('review-form').hidden=true;$('queue-alert').hidden=true;}const {streams}=await api('/api/streams');$('stream').replaceChildren(...streams.map(s=>{const o=text('option',s);o.value=s;return o;}));if(!streams.length){$('message').textContent='No streams yet. Start the server with --demo to load synthetic observations.';return;}await refresh();}catch(e){$('message').textContent=e.message;}})();
 
 $('queue-alert').onclick=async()=>{try{await api('/api/alerts',{stream_id:$('stream').value});await refresh();}catch(e){$('message').textContent=e.message;}};
 

@@ -4,7 +4,7 @@ from hashlib import sha256
 import json
 import math
 
-RULE_VERSION = "triage-v0.1"
+RULE_VERSION = "triage-v0.2"
 SIGNALS = {"turbidity", "odor", "normal", "rainfall"}
 
 
@@ -60,6 +60,8 @@ def validate(payload, received_at):
     if not isinstance(record.get("note", ""), str) or len(record.get("note", "")) > 1500:
         raise ValueError("Note must be text, at most 1500 characters")
     record.setdefault("note", "")
+    record['source_type'] = 'synthetic' if record['synthetic'] else 'real'
+    record['record_type'] = 'rainfall_context' if record['signal'] == 'rainfall' else 'citizen_report'
     record["id"] = digest([record["source_id"], record["external_id"]])[:24]
     return record
 
@@ -71,6 +73,8 @@ def assess(records, stream_id, as_of):
     evidence = sorted((r for r in records if r["stream_id"] == stream_id
                        and cutoff <= r["observed_at"] <= as_of and r["received_at"] <= as_of),
                       key=lambda r: (r["received_at"], r["id"]))
+    evidence = [dict(r, source_type='synthetic' if r['synthetic'] else 'real',
+        record_type='rainfall_context' if r['signal'] == 'rainfall' else 'citizen_report') for r in evidence]
     # Multiple reports from one declared source never count as corroboration.
     unusual = [r for r in evidence if r["signal"] in {"turbidity", "odor"}]
     normal = [r for r in evidence if r["signal"] == "normal"]

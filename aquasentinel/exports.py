@@ -64,7 +64,7 @@ def fhir_bundle(s):
     for r in s['reviews']:
         review=add({'resourceType':'Basic','code':{'text':'Environmental review snapshot'},
             'identifier':[{'system':'https://github.com/Cyberchopin/aquasentinel/snapshot','value':r['decision_hash']}],
-            'extension':[{'url':'https://github.com/Cyberchopin/aquasentinel/review-note','valueString':r['note']}]},'review/'+s['stream_id']+'/'+str(r['id']))
+            'extension':[{'url':'https://github.com/Cyberchopin/aquasentinel/review-note','valueString':r['note']}]},'review/'+s['stream_id']+'/'+r['decision_hash']+'/'+r['reviewed_at']+'/'+str(r['id']))
         add({'resourceType':'Provenance','target':[{'reference':review}], 'recorded':r['reviewed_at'],
             'activity':{'text':r['action']},'agent':[{'who':{'display':'Unauthenticated demo reviewer'}}]},'provenance/'+review)
     if s['review_current'] and s['display_state']=='follow_up_required':

@@ -36,6 +36,8 @@ class Store:
             UNIQUE(stream_id, decision_hash, level));
         ''')
         self.db.commit()
+        from .audit import install
+        install(self.db)
 
     def close(self):
         self.db.close()
@@ -45,6 +47,8 @@ class Store:
         existing = self.db.execute("SELECT payload FROM observations WHERE id=?", (record["id"],)).fetchone()
         if existing:
             old = json.loads(existing["payload"])
+            old.setdefault('source_type', 'synthetic' if old['synthetic'] else 'real')
+            old.setdefault('record_type', 'rainfall_context' if old['signal'] == 'rainfall' else 'citizen_report')
             if {k: v for k, v in old.items() if k != "received_at"} != {k: v for k, v in record.items() if k != "received_at"}:
                 raise Conflict("This source/external_id already exists with different content")
             return {"duplicate": True, "observation": old}

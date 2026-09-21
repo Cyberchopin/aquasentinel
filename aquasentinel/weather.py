@@ -30,7 +30,10 @@ def validate_capture(capture):
     for value in hourly['rain']:
         if value is not None and (type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1000):
             raise ValueError('Invalid rain value')
-    c['capture_id'] = digest({k: v for k, v in c.items() if k != 'capture_id'})
+    identity = digest({k: v for k, v in c.items() if k != 'capture_id'})
+    if c.get('capture_id') and c['capture_id'] != identity:
+        raise ValueError('Weather capture checksum mismatch')
+    c['capture_id'] = identity
     return c
 
 

@@ -30,3 +30,18 @@ See `benchmark.json` for the exact measured run and environment. It uses 1,000 s
 - No authenticated citizen/reviewer identities; local loopback-only deployment.
 - Rules and thresholds are illustrative; review priority is not pollution probability or a water-safety finding.
 - Queue/recovery under process crashes, sustained/concurrent load, accessibility audit and deployment validation remain future work.
+
+
+## September 21 implementation validation
+
+- 39 unittest cases passed after USGS, forecast, FHIR, geospatial and public-session work.
+- Live Open-Meteo forecast and archive capture succeeded; USGS raw checksums verified.
+- FHIR R4 structural validation with fhir.resources 6.5.0 / pydantic 1.x passed
+  USGS (9 entries), reviewed demo creek A (8 entries), and creek B (2 entries).
+  No official HL7 Java validator, terminology server or OAH profile validation claimed.
+- Browser verified real sensor rows and forecast capture label on the local UI.
+- Public deployment and Docker runtime testing remain pending (Docker unavailable).
+- Public session HTTP tests verify separation, read-only rejection and rate limit.
+
+- Browser flow verified: save review → add synthetic report → before/after feedback and stale review while retaining its history.
+- Hash chain verify detects row modification; 100 seeded random late arrivals leave the earlier snapshot hash unchanged.
