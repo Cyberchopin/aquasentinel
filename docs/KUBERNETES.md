@@ -65,4 +65,4 @@ For public access, route your own Ingress/Gateway and TLS hostname to Service
 
 Validation: application tests passed in the development environment. Docker build,
 Kubernetes API validation and cluster rollout must be run in your environment;
-those tools/cluster are not available here.
+Docker and kubectl are installed, but local manifest rendering returned an access-denied error; no container build or cluster rollout was performed.
